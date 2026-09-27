@@ -1,4 +1,3 @@
- 
 name: Build Madeira IPA (PR 14)
 
 on:
@@ -15,7 +14,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # PR #14'ü orijinal depodan (upstream) çeker
+      # PR #14'ü orijinal repodan çeker
       - name: Checkout PR #14
         run: |
           git remote add upstream https://github.com/willfaust/Madeira.git
@@ -23,13 +22,21 @@ jobs:
           git checkout pr-14
           git submodule update --init --recursive
 
-      # PR #14 içindeki resmi derleme zincirini çalıştırır
+      # Güncel bison, flex ve derleme araçlarını kurup sistem yoluna ekler
+      - name: Install Dependencies & Setup Tools
+        run: |
+          brew install bison flex pkg-config cmake ninja meson llvm lld
+          echo "$(brew --prefix bison)/bin" >> $GITHUB_PATH
+          echo "$(brew --prefix flex)/bin" >> $GITHUB_PATH
+          echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
+
+      # PR #14 tek komutlu derleyici betiğini çalıştırır
       - name: Run One-Command Build Script
         run: |
           chmod +x ./scripts/build-ipa.sh
           ./scripts/build-ipa.sh
 
-      # Üretilen IPA'yı Artifacts alanına yükler
+      # Çıkan IPA dosyasını Artifacts alanına yükler
       - name: Upload IPA to Artifacts
         uses: actions/upload-artifact@v4
         with:
