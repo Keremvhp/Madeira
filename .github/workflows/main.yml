@@ -25,6 +25,14 @@ jobs:
             ./tools/fetch-vcruntime.sh
           fi
 
+      # Hatanızı çözen eksik toolchain indirme adımı:
+      - name: Setup llvm-mingw Toolchain
+        run: |
+          mkdir -p toolchains
+          curl -L -o llvm-mingw.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-macos-universal.tar.xz
+          tar -xf llvm-mingw.tar.xz -C toolchains/
+          chmod +x toolchains/**/bin/*
+
       - name: Compile Native Submodules
         run: |
           for script in build/*/build.sh; do
