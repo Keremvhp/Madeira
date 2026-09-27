@@ -1,4 +1,4 @@
-name: Build Madeira IPA
+name: Build Madeira IPA (PR 14)
 
 on:
   workflow_dispatch:
@@ -6,63 +6,31 @@ on:
 jobs:
   build-ios:
     runs-on: macos-14
+    timeout-minutes: 360 # Kapsamlı derleme için maksimum süre
 
     steps:
-      - name: Checkout Repository with Submodules
+      - name: Checkout Base Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
-      - name: Install Build Dependencies
+      # PR #14'ün getirdiği tek komutlu derleme betiklerini içeri çeker
+      - name: Checkout PR #14
         run: |
-          brew install cmake ninja meson llvm lld
+          git fetch origin pull/14/head:pr-14
+          git checkout pr-14
+          git submodule update --init --recursive
 
-      # 1. Hatanın çözümü: llvm-mingw 20240619 derleyicisini indirip tam beklenen konuma açar
-      - name: Setup llvm-mingw Toolchain
+      # PR #14 içindeki resmi derleme zincirini çalıştırır
+      - name: Run One-Command Build Script
         run: |
-          mkdir -p toolchains
-          curl -L -o llvm-mingw.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-macos-universal.tar.xz
-          tar -xf llvm-mingw.tar.xz -C toolchains/
-          chmod +x toolchains/**/bin/*
+          chmod +x ./scripts/build-ipa.sh
+          ./scripts/build-ipa.sh
 
-      # 2. Yerel parçaları (Wine, FEX, DXMT, d3d11-triangle) derleme
-      - name: Compile Native Submodules
-        run: |
-          for script in build/*/build.sh; do
-            if [ -f "$script" ]; then
-              chmod +x "$script"
-              "$script"
-            fi
-          done
-
-      # 3. iOS uygulamasını Xcode ile imzasız derleme
-      - name: Build iOS Application (Unsigned)
-        run: |
-          xcodebuild clean build \
-            -project Madeira.xcodeproj \
-            -scheme Madeira \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath ./DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
-
-      # 4. Derlenen .app paketini IPA formatına dönüştürme
-      - name: Package into IPA
-        run: |
-          mkdir -p Payload
-          APP_PATH=$(find ./DerivedData/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1)
-          cp -R "$APP_PATH" Payload/
-          zip -r Madeira.ipa Payload
-
-      # 5. iPad'e indirmek üzere Artifacts alanına yükleme
+      # Üretilen IPA'yı Artifacts alanına yükler
       - name: Upload IPA to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Madeira-Unsigned-IPA
-          path: Madeira.ipa
+          name: Madeira-IPA
+          path: dist/Madeira.ipa
           retention-days: 7
