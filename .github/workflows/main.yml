@@ -1,0 +1,63 @@
+name: Build Madeira IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository with Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Build Dependencies
+        run: |
+          brew install cmake ninja meson llvm lld
+
+      - name: Fetch VC Runtime DLLs
+        run: |
+          if [ -f "tools/fetch-vcruntime.sh" ]; then
+            chmod +x tools/fetch-vcruntime.sh
+            ./tools/fetch-vcruntime.sh
+          fi
+
+      - name: Compile Native Submodules
+        run: |
+          for script in build/*/build.sh; do
+            if [ -f "$script" ]; then
+              chmod +x "$script"
+              "$script"
+            fi
+          done
+
+      - name: Build iOS Application (Unsigned)
+        run: |
+          xcodebuild clean build \
+            -project Madeira.xcodeproj \
+            -scheme Madeira \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ./DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Package into IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find ./DerivedData/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1)
+          cp -R "$APP_PATH" Payload/
+          zip -r Madeira.ipa Payload
+
+      - name: Upload IPA to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Madeira-Unsigned-IPA
+          path: Madeira.ipa
+          retention-days: 7
